@@ -132,7 +132,7 @@ def consultar_tt_debug(fecha_dia):
 
     logger.info(f'Procesando data debug..')
     df__ = procesar_datos_consulta(cur1, columnas_adic)
-    fecha_ = fecha_dia.replace.replace('-', '_')
+    fecha_ = fecha_dia.replace('-', '_')
     logger.info(f'Guardando data debug..')
     df__.to_parquet(f'data_Ttec_{fecha_}.parquet', compression='gzip')
 
