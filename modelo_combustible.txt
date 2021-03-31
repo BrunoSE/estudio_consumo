@@ -1,0 +1,22 @@
+Tomar data de consumo (electricos/diesel) y hacer modelos econometricos por tipo de bus* usando:
+*pedir data PPU - tipo bus (marca/modelo/plazas)
+- altimetria de paraderos (pato)
+- perfil de carga (cesar)
+- velocidad entre paradas o tpo + dist?
+- temp aire?
+
+
+por tipo dia - media hora del dia? NO, debería estar dado por carga/velocidad
+variable dependiente a modelar: (delta consumo/distancia entre paraderos)
+
+Procedimiento:
+antes de usar algoritmo que saca data tracktec
+- agregar temperatura de aire
+- solo sacar data de [2, 20] noviembre
+
+1. caso electrico:
+- filtrar solo por soc nonulo
+
+2. caso diesel:
+- filtrar solo por consumo combustible nonulo
+
