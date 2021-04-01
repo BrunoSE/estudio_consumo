@@ -30,11 +30,11 @@ def mantener_log():
     logger.addHandler(print_handler)
 
 
-def procesar_datos_consulta(cursor, columnas_adicionales=[]):
+def procesar_datos_consulta_v2(cursor, columnas_adicionales=[]):
     datos = [row for row in cursor.fetchall() if row[0] is not None]
     df_ = pd.DataFrame(datos, columns=[i[0] for i in cursor.description])
     df_.set_index('id', inplace=True)
-    columnas_valor = ['latitud', 'longitud', 'valor_soc', 'valor_ptg', 'valor_ptc', 'valor_odom']
+    columnas_valor = ['latitud', 'longitud', 'valor_soc']
     for col_a in columnas_adicionales:
         columnas_valor.append(col_a)
     for columna in columnas_valor:
@@ -55,7 +55,7 @@ def procesar_datos_consulta(cursor, columnas_adicionales=[]):
     return df_
 
 
-def consultar_tt_debug(fecha_dia):
+def consultar_ttec_variable(fecha_dia):
     db1 = MySQLdb.connect(host=ip_bd_edu,
                           user="brunom",
                           passwd="Manzana",
@@ -63,15 +63,28 @@ def consultar_tt_debug(fecha_dia):
                           charset='utf8')
 
     cur1 = db1.cursor()
-    variable1 = 'Temperatura de Refrigerante'
-    abv1 = 'ref1'
-    variable2 = 'Temp Refrigerante'
-    abv2 = 'ref2'
+    variable1 = 'Temp Interior'
+    abv1 = 'tint'
+    variable2 = 'Temp Exterior'
+    abv2 = 'text'
     variable3 = 'Temperatura de Motor'
-    abv3 = 'mot'
-    columnas_adic = [f'valor_{x}' for x in [abv1, abv2, abv3]]
-    logger.info(f'Consultando debug..')
+    abv3 = 'tmot'
+    variable4 = 'Potencia Total Generada'
+    abv4 = 'ptg'
+    variable5 = 'Potencia Total Consumida'
+    abv5 = 'ptc'
+    variable6 = 'Odómetro'
+    abv6 = 'odom'
+
+    columnas_var = [f'valor_{x}' for x in [abv1, abv2, abv3, abv4, abv5, abv6]]
+    logger.info(f'Consultando debug con vars {columnas_var}')
     cur1.execute(f"""
+                 SELECT * FROM
+                 (
+                     SELECT * FROM
+                     (
+                         SELECT * FROM
+                         (
                  SELECT * FROM
                  (
                      SELECT * FROM
@@ -87,7 +100,7 @@ def consultar_tt_debug(fecha_dia):
                                      WHERE fecha_evento = '{fecha_dia}'
                                      AND hora_evento IS NOT NULL AND bus_tipo = 'Electric'
                                      AND PATENTE IS NOT NULL AND NOT (patente REGEXP '^[0-9]+')
-                                 ) TABLE1
+                                 ) TABLEORIGINAL
                                  LEFT JOIN
                                      (SELECT valor AS valor_soc,
                                      evento_id AS evento_id_soc FROM
@@ -95,8 +108,8 @@ def consultar_tt_debug(fecha_dia):
                                      WHERE (nombre = 'SOC' AND
                                             valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
                                  ) AS t_soc
-                                 ON TABLE1.id=t_soc.evento_id_soc
-                             ) TABLE2
+                                 ON TABLEORIGINAL.id=t_soc.evento_id_soc
+                             ) TABLESOC
                              LEFT JOIN
                                  (SELECT valor AS valor_{abv1},
                                  evento_id AS evento_id_{abv1} FROM
@@ -104,8 +117,8 @@ def consultar_tt_debug(fecha_dia):
                                  WHERE (nombre = '{variable1}' AND
                                         valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
                                  ) AS t{abv1}
-                             ON TABLE2.id=t{abv1}.evento_id_{abv1}
-                         ) TABLE3
+                             ON TABLESOC.id=t{abv1}.evento_id_{abv1}
+                         ) TABLE1
                          LEFT JOIN
                              (SELECT valor AS valor_{abv2},
                              evento_id AS evento_id_{abv2} FROM
@@ -113,8 +126,8 @@ def consultar_tt_debug(fecha_dia):
                              WHERE (nombre = '{variable2}' AND
                                     valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
                              ) AS t{abv2}
-                         ON TABLE3.id=t{abv2}.evento_id_{abv2}
-                     ) TABLE4
+                         ON TABLE1.id=t{abv2}.evento_id_{abv2}
+                     ) TABLE2
                      LEFT JOIN
                          (SELECT valor AS valor_{abv3},
                          evento_id AS evento_id_{abv3} FROM
@@ -122,8 +135,35 @@ def consultar_tt_debug(fecha_dia):
                          WHERE (nombre = '{variable3}' AND
                                 valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
                      ) AS t{abv3}
-                     ON TABLE4.id=t{abv3}.evento_id_{abv3}
-                 ) AS TABLE5
+                     ON TABLE2.id=t{abv3}.evento_id_{abv3}
+                 ) AS TABLE3
+                             LEFT JOIN
+                                 (SELECT valor AS valor_{abv4},
+                                 evento_id AS evento_id_{abv4} FROM
+                                 tracktec.telemetria_
+                                 WHERE (nombre = '{variable4}' AND
+                                        valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
+                                 ) AS t{abv4}
+                             ON TABLE3.id=t{abv4}.evento_id_{abv4}
+                         ) TABLE4
+                         LEFT JOIN
+                             (SELECT valor AS valor_{abv5},
+                             evento_id AS evento_id_{abv5} FROM
+                             tracktec.telemetria_
+                             WHERE (nombre = '{variable5}' AND
+                                    valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
+                             ) AS t{abv5}
+                         ON TABLE4.id=t{abv5}.evento_id_{abv5}
+                     ) TABLE5
+                     LEFT JOIN
+                         (SELECT valor AS valor_{abv6},
+                         evento_id AS evento_id_{abv6} FROM
+                         tracktec.telemetria_
+                         WHERE (nombre = '{variable6}' AND
+                                valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
+                     ) AS t{abv6}
+                     ON TABLE5.id=t{abv6}.evento_id_{abv6}
+                 ) AS TABLE6
                  WHERE
                  valor_soc IS NOT NULL
                  ORDER BY patente;
@@ -131,10 +171,10 @@ def consultar_tt_debug(fecha_dia):
                  )
 
     logger.info(f'Procesando data debug..')
-    df__ = procesar_datos_consulta(cur1, columnas_adic)
+    df__ = procesar_datos_consulta_v2(cur1, columnas_var)
     fecha_ = fecha_dia.replace('-', '_')
     logger.info(f'Guardando data debug..')
-    df__.to_parquet(f'data_Ttec_{fecha_}.parquet', compression='gzip')
+    df__.to_parquet(f'data/data_Ttec_{fecha_}.parquet', compression='gzip')
 
     cur1.close()
     db1.close()
@@ -288,7 +328,7 @@ def pipeline(dia_ini, mes, anno, replace_data_ttec=False, sem_especial=[]):
 
 if __name__ == '__main__':
     mantener_log()
-    consultar_tt_debug('2020-11-03')
+    consultar_ttec_variable('2020-11-19')
     exit()
     reemplazar_data_ttec = False
     pipeline(2, 11, 2020, reemplazar_data_ttec)
