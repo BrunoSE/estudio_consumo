@@ -192,16 +192,16 @@ def consultar_ttec_variable_diesel(fecha_dia):
                           charset='utf8')
 
     cur1 = db1.cursor()
-    variable1 = 'Temp Interior'
-    abv1 = 'tint'
-    variable2 = 'Temp Exterior'
-    abv2 = 'text'
-    variable3 = 'Temperatura de Motor'
-    abv3 = 'tmot'
-    variable4 = 'Temperatura de Aceite'
-    abv4 = 'tac1'
-    variable5 = 'Temp Aceite'
-    abv5 = 'tac2'
+    variable1 = 'Temperatura de Refrigerante'
+    abv1 = 'tref1'
+    variable2 = 'Temp Refrigerante'
+    abv2 = 'tref2'
+    variable3 = 'Temperatura de Aire'
+    abv3 = 'tair1'
+    variable4 = 'Temp Aire'
+    abv4 = 'tair2'
+    variable5 = 'Temperatura Ambiente'
+    abv5 = 'tamb'
     variable6 = 'Odómetro'
     abv6 = 'odom'
 
