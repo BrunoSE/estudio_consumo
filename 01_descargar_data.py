@@ -193,15 +193,15 @@ def consultar_ttec_variable_diesel(fecha_dia):
 
     cur1 = db1.cursor()
     variable1 = 'Temperatura de Refrigerante'
-    abv1 = 'tref1'
-    variable2 = 'Temp Refrigerante'
-    abv2 = 'tref2'
+    abv1 = 'tref'
+    variable2 = 'Temperatura de Aceite'
+    abv2 = 'tac'
     variable3 = 'Temperatura de Aire'
-    abv3 = 'tair1'
-    variable4 = 'Temp Aire'
-    abv4 = 'tair2'
-    variable5 = 'Temperatura Ambiente'
-    abv5 = 'tamb'
+    abv3 = 'tair'
+    variable4 = 'Temperatura Ambiente'
+    abv4 = 'tamb'
+    variable5 = 'AdBlue'
+    abv5 = 'adbl'
     variable6 = 'Odómetro'
     abv6 = 'odom'
 
@@ -403,8 +403,9 @@ def pipeline(dia_ini, mes, anno, replace_data_ttec=False, sem_especial=[]):
 
 if __name__ == '__main__':
     mantener_log()
-    # consultar_ttec_variable('2020-08-31')
+    consultar_ttec_variable_diesel('2020-08-31')
     consultar_ttec_variable_diesel('2020-11-19')
+    consultar_ttec_variable_diesel('2021-02-23')
     exit()
     reemplazar_data_ttec = False
     pipeline(2, 11, 2020, reemplazar_data_ttec)
