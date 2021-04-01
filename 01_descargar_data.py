@@ -34,7 +34,7 @@ def procesar_datos_consulta_v2(cursor, columnas_adicionales=[]):
     datos = [row for row in cursor.fetchall() if row[0] is not None]
     df_ = pd.DataFrame(datos, columns=[i[0] for i in cursor.description])
     df_.set_index('id', inplace=True)
-    columnas_valor = ['latitud', 'longitud', 'valor_soc']
+    columnas_valor = ['latitud', 'longitud']
     for col_a in columnas_adicionales:
         columnas_valor.append(col_a)
     for columna in columnas_valor:
@@ -76,8 +76,10 @@ def consultar_ttec_variable(fecha_dia):
     variable6 = 'Odómetro'
     abv6 = 'odom'
 
+    lista_variables = [variable1, variable2, variable3, variable4, variable5, variable6]
     columnas_var = [f'valor_{x}' for x in [abv1, abv2, abv3, abv4, abv5, abv6]]
-    logger.info(f'Consultando debug con vars {columnas_var}')
+    columnas_var.append('valor_soc')
+    logger.info(f'Consultando electricos fecha {fecha_dia} con variables {lista_variables} en columnas {columnas_var}')
     cur1.execute(f"""
                  SELECT * FROM
                  (
@@ -170,19 +172,19 @@ def consultar_ttec_variable(fecha_dia):
                  """
                  )
 
-    logger.info(f'Procesando data debug..')
+    logger.info(f'Procesando data..')
     df__ = procesar_datos_consulta_v2(cur1, columnas_var)
     fecha_ = fecha_dia.replace('-', '_')
-    logger.info(f'Guardando data debug..')
+    logger.info(f'Guardando data..')
     df__.to_parquet(f'data/data_Ttec_{fecha_}.parquet', compression='gzip')
 
     cur1.close()
     db1.close()
-    logger.info(f'Listo debug..')
+    logger.info(f'Listo..')
     return None
 
 
-def consultar_transmisiones_tracktec_por_dia(fecha_dia):
+def consultar_ttec_variable_diesel(fecha_dia):
     db1 = MySQLdb.connect(host=ip_bd_edu,
                           user="brunom",
                           passwd="Manzana",
@@ -190,8 +192,30 @@ def consultar_transmisiones_tracktec_por_dia(fecha_dia):
                           charset='utf8')
 
     cur1 = db1.cursor()
+    variable1 = 'Temp Interior'
+    abv1 = 'tint'
+    variable2 = 'Temp Exterior'
+    abv2 = 'text'
+    variable3 = 'Temperatura de Motor'
+    abv3 = 'tmot'
+    variable4 = 'Temperatura de Aceite'
+    abv4 = 'tac1'
+    variable5 = 'Temp Aceite'
+    abv5 = 'tac2'
+    variable6 = 'Odómetro'
+    abv6 = 'odom'
 
+    lista_variables = [variable1, variable2, variable3, variable4, variable5, variable6]
+    columnas_var = [f'valor_{x}' for x in [abv1, abv2, abv3, abv4, abv5, abv6]]
+    columnas_var.append('valor_consc')
+    logger.info(f'Consultando diesel fecha {fecha_dia} con variables {lista_variables} en columnas {columnas_var}')
     cur1.execute(f"""
+                 SELECT * FROM
+                 (
+                     SELECT * FROM
+                     (
+                         SELECT * FROM
+                         (
                  SELECT * FROM
                  (
                      SELECT * FROM
@@ -205,49 +229,100 @@ def consultar_transmisiones_tracktec_por_dia(fecha_dia):
                                      SELECT * FROM
                                      tracktec.eventos
                                      WHERE fecha_evento = '{fecha_dia}'
-                                     AND hora_evento IS NOT NULL AND bus_tipo = 'Electric'
+                                     AND hora_evento IS NOT NULL AND bus_tipo = 'Fuel'
                                      AND PATENTE IS NOT NULL AND NOT (patente REGEXP '^[0-9]+')
-                                 ) TABLE1
+                                 ) TABLEORIGINAL
                                  LEFT JOIN
-                                     (SELECT valor AS valor_soc,
-                                     evento_id AS evento_id_soc FROM
+                                     (SELECT valor AS valor_consc,
+                                     evento_id AS evento_id_consc FROM
                                      tracktec.telemetria_
-                                     WHERE (nombre = 'SOC' AND
+                                     WHERE (nombre = 'Consumo total de combustible' AND
                                             valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
-                                 ) AS t_soc
-                                 ON TABLE1.id=t_soc.evento_id_soc
-                             ) TABLE2
+                                 ) AS t_consc
+                                 ON TABLEORIGINAL.id=t_consc.evento_id_consc
+                             ) TABLECONSC
                              LEFT JOIN
-                                 (SELECT valor AS valor_ptg,
-                                 evento_id AS evento_id_ptg FROM
+                                 (SELECT valor AS valor_{abv1},
+                                 evento_id AS evento_id_{abv1} FROM
                                  tracktec.telemetria_
-                                 WHERE (nombre = 'Potencia Total Generada' AND
+                                 WHERE (nombre = '{variable1}' AND
                                         valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
-                                 ) AS t_ptg
-                             ON TABLE2.id=t_ptg.evento_id_ptg
-                         ) TABLE3
+                                 ) AS t{abv1}
+                             ON TABLECONSC.id=t{abv1}.evento_id_{abv1}
+                         ) TABLE1
                          LEFT JOIN
-                             (SELECT valor AS valor_ptc,
-                             evento_id AS evento_id_ptc FROM
+                             (SELECT valor AS valor_{abv2},
+                             evento_id AS evento_id_{abv2} FROM
                              tracktec.telemetria_
-                             WHERE (nombre = 'Potencia Total Consumida' AND
+                             WHERE (nombre = '{variable2}' AND
                                     valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
-                             ) AS t_ptc
-                         ON TABLE3.id=t_ptc.evento_id_ptc
-                     ) TABLE4
+                             ) AS t{abv2}
+                         ON TABLE1.id=t{abv2}.evento_id_{abv2}
+                     ) TABLE2
                      LEFT JOIN
-                         (SELECT valor AS valor_odom,
-                         evento_id AS evento_id_odo FROM
+                         (SELECT valor AS valor_{abv3},
+                         evento_id AS evento_id_{abv3} FROM
                          tracktec.telemetria_
-                         WHERE (nombre = 'Odómetro' AND
+                         WHERE (nombre = '{variable3}' AND
                                 valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
-                     ) AS t_odo
-                     ON TABLE4.id=t_odo.evento_id_odo
-                 ) AS TABLE5
+                     ) AS t{abv3}
+                     ON TABLE2.id=t{abv3}.evento_id_{abv3}
+                 ) AS TABLE3
+                             LEFT JOIN
+                                 (SELECT valor AS valor_{abv4},
+                                 evento_id AS evento_id_{abv4} FROM
+                                 tracktec.telemetria_
+                                 WHERE (nombre = '{variable4}' AND
+                                        valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
+                                 ) AS t{abv4}
+                             ON TABLE3.id=t{abv4}.evento_id_{abv4}
+                         ) TABLE4
+                         LEFT JOIN
+                             (SELECT valor AS valor_{abv5},
+                             evento_id AS evento_id_{abv5} FROM
+                             tracktec.telemetria_
+                             WHERE (nombre = '{variable5}' AND
+                                    valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
+                             ) AS t{abv5}
+                         ON TABLE4.id=t{abv5}.evento_id_{abv5}
+                     ) TABLE5
+                     LEFT JOIN
+                         (SELECT valor AS valor_{abv6},
+                         evento_id AS evento_id_{abv6} FROM
+                         tracktec.telemetria_
+                         WHERE (nombre = '{variable6}' AND
+                                valor REGEXP '^[\\-]?[0-9]+\\.?[0-9]*$')
+                     ) AS t{abv6}
+                     ON TABLE5.id=t{abv6}.evento_id_{abv6}
+                 ) AS TABLE6
                  WHERE
                  valor_soc IS NOT NULL
                  ORDER BY patente;
                  """
+                 )
+
+    logger.info(f'Procesando data..')
+    df__ = procesar_datos_consulta_v2(cur1, columnas_var)
+    fecha_ = fecha_dia.replace('-', '_')
+    logger.info(f'Guardando data..')
+    df__.to_parquet(f'data/data_Ttec_dsl_{fecha_}.parquet', compression='gzip')
+
+    cur1.close()
+    db1.close()
+    logger.info(f'Listo..')
+    return None
+
+
+def consultar_transmisiones_tracktec_por_dia(fecha_dia):
+    db1 = MySQLdb.connect(host=ip_bd_edu,
+                          user="brunom",
+                          passwd="Manzana",
+                          db="tracktec",
+                          charset='utf8')
+
+    cur1 = db1.cursor()
+
+    cur1.execute(""
                  )
 
     df__ = procesar_datos_consulta(cur1)
@@ -328,7 +403,8 @@ def pipeline(dia_ini, mes, anno, replace_data_ttec=False, sem_especial=[]):
 
 if __name__ == '__main__':
     mantener_log()
-    consultar_ttec_variable('2020-11-19')
+    # consultar_ttec_variable('2020-08-31')
+    consultar_ttec_variable_diesel('2020-11-19')
     exit()
     reemplazar_data_ttec = False
     pipeline(2, 11, 2020, reemplazar_data_ttec)
