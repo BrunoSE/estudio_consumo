@@ -296,7 +296,7 @@ def consultar_ttec_variable_diesel(fecha_dia):
                      ON TABLE5.id=t{abv6}.evento_id_{abv6}
                  ) AS TABLE6
                  WHERE
-                 valor_soc IS NOT NULL
+                 valor_consc IS NOT NULL
                  ORDER BY patente;
                  """
                  )
