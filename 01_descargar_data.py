@@ -175,8 +175,8 @@ def consultar_ttec_variable(fecha_dia):
     logger.info(f'Procesando data..')
     df__ = procesar_datos_consulta_v2(cur1, columnas_var)
     fecha_ = fecha_dia.replace('-', '_')
-    logger.info(f'Guardando data..')
-    df__.to_parquet(f'data/data_Ttec_{fecha_}.parquet', compression='gzip')
+    logger.info(f'Raw data guardada..')
+    df__.to_parquet(f'data_Ttec_{fecha_}.parquet', compression='gzip')
 
     cur1.close()
     db1.close()
@@ -301,47 +301,30 @@ def consultar_ttec_variable_diesel(fecha_dia):
                  """
                  )
 
-    logger.info(f'Procesando data..')
+    logger.info(f'Procesando data diesel..')
     df__ = procesar_datos_consulta_v2(cur1, columnas_var)
     fecha_ = fecha_dia.replace('-', '_')
-    logger.info(f'Guardando data..')
-    df__.to_parquet(f'data/data_Ttec_dsl_{fecha_}.parquet', compression='gzip')
+    logger.info(f'Guardando data diesel..')
+    df__.to_parquet(f'data_Ttec_dsl_{fecha_}.parquet', compression='gzip')
 
     cur1.close()
     db1.close()
-    logger.info(f'Listo..')
+    logger.info(f'Raw data diesel guardada..')
     return None
 
 
-def consultar_transmisiones_tracktec_por_dia(fecha_dia):
-    db1 = MySQLdb.connect(host=ip_bd_edu,
-                          user="brunom",
-                          passwd="Manzana",
-                          db="tracktec",
-                          charset='utf8')
-
-    cur1 = db1.cursor()
-
-    cur1.execute(""
-                 )
-
-    df__ = procesar_datos_consulta(cur1)
-
-    cur1.close()
-    db1.close()
-
-    return df__
-
-
-def descargar_semana_ttec(fechas, reemplazar=True):
+def descargar_semana_ttec_v2(fechas, reemplazar=False):
     for fecha_ in fechas:
         if reemplazar or not os.path.isfile(f'data_Ttec_{fecha_}.parquet'):
             fecha__ = fecha_.replace('_', '-')
-            logger.info(f"Descargando data Tracktec para fecha {fecha_}")
-            dfx = consultar_transmisiones_tracktec_por_dia(fecha__)
-            dfx.to_parquet(f'data_Ttec_{fecha_}.parquet', compression='gzip')
+            consultar_ttec_variable(fecha__)
         else:
-            logger.info(f"No se va a reemplazar data Ttec de fecha {fecha_}")
+            logger.info(f"No se va a reemplazar data Ttec electricos de fecha {fecha_}")
+        if reemplazar or not os.path.isfile(f'data_Ttec_dsl_{fecha_}.parquet'):
+            fecha__ = fecha_.replace('_', '-')
+            consultar_ttec_variable_diesel(fecha__)
+        else:
+            logger.info(f"No se va a reemplazar data Ttec diesel de fecha {fecha_}")
 
 
 def pipeline(dia_ini, mes, anno, replace_data_ttec=False, sem_especial=[]):
@@ -403,12 +386,14 @@ def pipeline(dia_ini, mes, anno, replace_data_ttec=False, sem_especial=[]):
 
 if __name__ == '__main__':
     mantener_log()
-    consultar_ttec_variable_diesel('2020-08-31')
-    consultar_ttec_variable_diesel('2020-11-19')
-    consultar_ttec_variable_diesel('2021-02-23')
-    exit()
+    # estas filas son para debug
+    # os.chdir('data')
+    # consultar_ttec_variable_diesel('2020-08-31')
+    # consultar_ttec_variable_diesel('2020-11-19')
+    # consultar_ttec_variable_diesel('2021-02-23')
+    # exit()
     reemplazar_data_ttec = False
     pipeline(2, 11, 2020, reemplazar_data_ttec)
     pipeline(9, 11, 2020, reemplazar_data_ttec)
-    pipeline(16, 11, 2020, reemplazar_data_ttec)
+    pipeline(16, 11, 2020, reemplazar_data_ttec, sem_especial=[1, 2, 3, 4, 5])
     logger.info('Listo todo')
