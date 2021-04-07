@@ -378,7 +378,7 @@ def pipeline(dia_ini, mes, anno, replace_data_ttec=False, sem_especial=[]):
     logger.info('Consultando servidor mysql por datos tracktec')
     if replace_data_ttec:
         logger.info("Como replace_data_ttec=True se van a reemplazar archivos parquet")
-    descargar_semana_ttec(fechas_de_interes, replace_data_ttec)
+    descargar_semana_ttec_v2(fechas_de_interes, replace_data_ttec)
 
     logger.info('Listo todo para esta semana')
     os.chdir('..')
