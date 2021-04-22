@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import logging
 import os
 from datetime import timedelta
@@ -14,6 +15,31 @@ if platform.startswith('win'):
 else:
     ip_bd_edu = "192.168.11.150"
 
+
+columnas_utiles_adatrap = ['Servicio_transantiago', 'Servicio_usuario', 'Patente',
+                           'Código_parada_transantiago', 'Código_parada_usuario',
+                           'Nombre_parada', 'Hora_inicio_expedición', 'Hora_fin_expedición',
+                           'Cumplimiento', 'Secuencia_parada', 'Identificador_expedición_día',
+                           'Distancia_parada_desde_inicio_ruta', 'Subidas_expandidas',
+                           'Bajadas_expandidas', 'Perfil_carga_al_llegar', 'Capacidad_bus',
+                           'Hora_en_parada', 'Periodo_transantiago_inicio_expedicion',
+                           'Periodo_transantiago_parada_expedición', 'Tipo_dia',
+                           'Zona_paga', 'Número_transacciones_en_parada',
+                           'Media_hora_de_inicio_expedición', 'Media_hora_en_parada', 'Fecha']
+
+columnas_utiles_ttec_dsl = ['patente', 'bus_tipo', 'geozona',
+                            'valor_consc', 'valor_tref', 'valor_tac',
+                            'valor_tair', 'valor_tamb', 'valor_adbl',
+                            'valor_odom', 'fecha_hora_evento']
+
+columnas_utiles_dsl = columnas_utiles_adatrap + columnas_utiles_ttec_dsl
+dict_col_ttec_back_dsl = {}
+dict_col_ttec_forw_dsl = {}
+for i in range(len(columnas_utiles_ttec_dsl)):
+    dict_col_ttec_back_dsl[columnas_utiles_ttec_dsl[i]] = f'{columnas_utiles_ttec_dsl[i]}_back'
+    dict_col_ttec_forw_dsl[columnas_utiles_ttec_dsl[i]] = f'{columnas_utiles_ttec_dsl[i]}_forw'
+
+col_forw_dsl = list(dict_col_ttec_forw_dsl.values())
 
 def mantener_log():
     global logger
@@ -32,25 +58,60 @@ def mantener_log():
     logger.addHandler(print_handler)
 
 
-def procesar_dia(fecha):
+def procesar_dia_dsl(fecha):
     fecha_pd = pd.to_datetime(fecha.replace('_', '-'))
     global df
     global df_f
     dfx = pd.read_parquet(f'data_Ttec_dsl_{fecha}.parquet')
     dfx.sort_values(by=['fecha_hora_evento'], inplace=True)
-    df_dia = pd.merge_asof(df.loc[df['Fecha'] == fecha_pd], dfx,
-                           left_on='Hora_en_parada',
-                           right_on='fecha_hora_evento',
-                           left_by='Patente', right_by='patente',
-                           suffixes=['', '_Ttec'],
-                           tolerance=timedelta(seconds=5),
-                           direction='nearest')
 
-    logger.info(f'Datos Tracktec {fecha}: {len(dfx.index)}')
-    logger.info(f'Datos ADATRAP {fecha}: {len(df_dia.index)}')
-    logger.info(f'Datos cruzados unicos: {len(df_dia.loc[~df_dia["evento_id_consc"].isna()].index)}')
+    df_back = pd.merge_asof(df.loc[df['Fecha'] == fecha_pd], dfx,
+                          left_on='Hora_en_parada',
+                          right_on='fecha_hora_evento',
+                          left_by='Patente', right_by='patente',
+                          suffixes=['', '_Ttec'],
+                          tolerance=timedelta(seconds=240),
+                          direction='backward')
     
+    logger.info(f' - - FECHA :  {fecha}')
+    logger.info(f'Datos ADATRAP en la fecha: {len(df.loc[df["Fecha"] == fecha_pd].index)}')
+    logger.info(f'Datos Tracktec en la fecha: {len(dfx.index)}')
+    logger.info(f'Datos cruzados backw: {len(df_back.loc[~df_back["evento_id_consc"].isna()].index)}')
+
+    df_back['dT_back'] = abs((df_back['Hora_en_parada'] -
+                            df_back['fecha_hora_evento']) / pd.Timedelta(seconds=1))
+
+    df_back.sort_values(by=['Patente', 'Hora_en_parada'], inplace=True)
+    df_back = df_back.loc[~df_back["evento_id_consc"].isna()]
+
+
+
+    df_forw = pd.merge_asof(df.loc[df['Fecha'] == fecha_pd], dfx,
+                          left_on='Hora_en_parada',
+                          right_on='fecha_hora_evento',
+                          left_by='Patente', right_by='patente',
+                          suffixes=['', '_Ttec'],
+                          tolerance=timedelta(seconds=240),
+                          direction='forward')
+
+    logger.info(f'Datos cruzados forw: {len(df_forw.loc[~df_forw["evento_id_consc"].isna()].index)}')
+
+    df_forw['dT_forw'] = abs((df_forw['Hora_en_parada'] -
+                            df_forw['fecha_hora_evento']) / pd.Timedelta(seconds=1))
+
+    df_forw.sort_values(by=['Patente', 'Hora_en_parada'], inplace=True)
+    df_forw = df_forw.loc[~df_forw["evento_id_consc"].isna()]
+
+    df_back = df_back[columnas_utiles_dsl]
+    df_forw = df_forw[columnas_utiles_dsl]
+    df_back.rename(columns=dict_col_ttec_back_dsl, inplace=True)
+    df_forw.rename(columns=dict_col_ttec_forw_dsl, inplace=True)
+    
+    df_dia = df_back.merge(df_forw[col_forw_dsl], left_index=True,
+                             right_index=True, suffixes=('', ''))
+
     df_f.append(df_dia.copy())
+    logger.info(f' . . . ')
     return None
 
 
@@ -105,50 +166,53 @@ def pipeline(dia_ini, mes, anno, sem_especial=[]):
     logger.info('Cruzando la data')
 
     for fecha_ in fechas_de_interes:
-        procesar_dia(fecha_)
+        procesar_dia_dsl(fecha_)
 
     logger.info('Listo todo para esta semana')
     os.chdir('..')
+    return None
 
 
 if __name__ == '__main__':
     global df
     global df_f
-    df_f = []
     mantener_log()
+    # Crear variable que escribe en log file de este dia
+    file_handler = logging.FileHandler(f'merged_data/merge.log')
 
-    df = pd.read_csv('data/adatrap1/Perfil.csv')
-    logger.info(f'Datos ADATRAP: {len(df.index)}')
-    df = df.loc[df['Hora_en_parada'] != '0']
-    df['Hora_en_parada'] = pd.to_datetime(df['Hora_en_parada'])
-    df.sort_values(by=['Hora_en_parada'], inplace=True)
-    df['Fecha'] = df['Hora_en_parada'].dt.date
+    # no deja pasar los debug, solo info hasta critical
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(file_format)
+    logger.addHandler(file_handler)
 
-    # estas filas son para debug
-    # os.chdir('data')
-    # consultar_ttec_variable_diesel('2020-08-31')
-    # consultar_ttec_variable_diesel('2020-11-19')
-    # consultar_ttec_variable_diesel('2021-02-23')
-    # exit()
-    pipeline(2, 11, 2020, sem_especial=[2, 3, 4, 5, 6, 7])
-    pipeline(9, 11, 2020, sem_especial=[1, 2, 3, 4, 6, 7])
-    pipeline(16, 11, 2020, sem_especial=[1, 2, 3, 4, 5])
+    direccion = 'data/adatrap_raw_data/data_descomprimida/'
+    Servicios = os.listdir(direccion)
+    logger.info(f'Servicios-sentido descargados: {Servicios}')
+    for ss in Servicios:
+        df_f = []
+        logger.info(f'Leyendo data ADATRAP de {ss}')
+        df = pd.read_csv(f'data/adatrap_raw_data/data_descomprimida/{ss}/Perfil.csv')
 
-    df_f = pd.concat(df_f)
-    logger.info(f'Datos ADATRAP con Hora_parada: {len(df.index)}')
-    logger.info(f'Datos del cruce: {len(df_f.index)}')
-    logger.info(f'Datos del cruce con data de Consumo: {len(df_f.loc[~df_f["evento_id_consc"].isna()].index)}')
-    df_f['dT_merge'] = abs((df_f['Hora_en_parada'] -
-                            df_f['fecha_hora_evento']) / pd.Timedelta(seconds=1))
+        logger.info(f'Datos ADATRAP total {ss}: {len(df.index)}')
+        df = df.loc[df['Hora_en_parada'] != '0']
+        df['Hora_en_parada'] = pd.to_datetime(df['Hora_en_parada'])
+        df = df.loc[~df['Hora_en_parada'].isna()]
+        df = df.loc[df['Expedición_inválida'] == 0]
+        df.sort_values(by=['Hora_en_parada', 'Secuencia_parada'], inplace=True)
+        df['Fecha'] = df['Hora_en_parada'].dt.date
+        df = df[columnas_utiles_adatrap]
+        logger.info(f'Datos ADATRAP con Hora_parada: {len(df.index)}')
 
-    df_f.sort_values(by=['patente', 'fecha_hora_evento', 'dT_merge'], inplace=True)
-    df_f.drop_duplicates(subset=['patente', 'fecha_hora_evento'], keep='first', inplace=True)
-    df_f.sort_values(by=['Patente', 'Hora_en_parada'], inplace=True)
-
-    logger.info(f'Datos del cruce unicos: {len(df_f.index)}')
-    logger.info(f'Datos del cruce unicos con data de Consumo: {len(df_f.loc[~df_f["evento_id_consc"].isna()].index)}')
-    df_f = df_f.loc[~df_f["evento_id_consc"].isna()]
-    logger.info('Guardando cruce')
-    df_f['Fecha'] = pd.to_datetime(df_f['Fecha'])
-    df_f.to_parquet(f'cruce_data_104i_v1.parquet', compression='gzip')
-    logger.info('Listo todo')
+        pipeline(2, 11, 2020, sem_especial=[2, 3, 4, 5, 6, 7])
+        pipeline(9, 11, 2020, sem_especial=[1, 2, 3, 4, 6, 7])
+        pipeline(16, 11, 2020, sem_especial=[1, 2, 3, 4, 5])
+        logger.info('Listo todas las semanas')
+        df_f = pd.concat(df_f)
+        
+        logger.info(f'Datos ADATRAP con Hora_parada: {len(df.index)}')
+        logger.info(f'Data total del cruce: {len(df_f.index)}')
+        logger.info('Guardando cruce')
+        df_f['Fecha'] = pd.to_datetime(df_f['Fecha'])
+        df_f.to_parquet(f'merged_data/Cruce_Adatrap_Ttec_{ss}.parquet', compression='gzip')
+        logger.info(f'Listo todo para servicio {ss}')
+        logger.info(' . . . ')
