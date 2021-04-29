@@ -15,7 +15,6 @@ if platform.startswith('win'):
 else:
     ip_bd_edu = "192.168.11.150"
 
-
 columnas_utiles_adatrap = ['Servicio_transantiago', 'Servicio_usuario', 'Patente',
                            'Código_parada_transantiago', 'Código_parada_usuario',
                            'Nombre_parada', 'Hora_inicio_expedición', 'Hora_fin_expedición',
@@ -27,19 +26,19 @@ columnas_utiles_adatrap = ['Servicio_transantiago', 'Servicio_usuario', 'Patente
                            'Zona_paga', 'Número_transacciones_en_parada',
                            'Media_hora_de_inicio_expedición', 'Media_hora_en_parada', 'Fecha']
 
-columnas_utiles_ttec_dsl = ['patente', 'bus_tipo', 'geozona',
-                            'valor_consc', 'valor_tref', 'valor_tac',
-                            'valor_tair', 'valor_tamb', 'valor_adbl',
+columnas_utiles_ttec_ele = ['patente', 'bus_tipo', 'geozona',
+                            'valor_soc', 'valor_tint', 'valor_text',
+                            'valor_tmot', 'valor_ptg', 'valor_ptc',
                             'valor_odom', 'fecha_hora_evento']
 
-columnas_utiles_dsl = columnas_utiles_adatrap + columnas_utiles_ttec_dsl
-dict_col_ttec_back_dsl = {}
-dict_col_ttec_forw_dsl = {}
-for i in range(len(columnas_utiles_ttec_dsl)):
-    dict_col_ttec_back_dsl[columnas_utiles_ttec_dsl[i]] = f'{columnas_utiles_ttec_dsl[i]}_back'
-    dict_col_ttec_forw_dsl[columnas_utiles_ttec_dsl[i]] = f'{columnas_utiles_ttec_dsl[i]}_forw'
+columnas_utiles_ele = columnas_utiles_adatrap + columnas_utiles_ttec_ele
+dict_col_ttec_back_ele = {}
+dict_col_ttec_forw_ele = {}
+for i in range(len(columnas_utiles_ttec_ele)):
+    dict_col_ttec_back_ele[columnas_utiles_ttec_ele[i]] = f'{columnas_utiles_ttec_ele[i]}_back'
+    dict_col_ttec_forw_ele[columnas_utiles_ttec_ele[i]] = f'{columnas_utiles_ttec_ele[i]}_forw'
 
-col_forw_dsl = list(dict_col_ttec_forw_dsl.values())
+col_forw_ele = list(dict_col_ttec_forw_ele.values())
 
 def mantener_log():
     global logger
@@ -58,11 +57,11 @@ def mantener_log():
     logger.addHandler(print_handler)
 
 
-def procesar_dia_dsl(fecha):
+def procesar_dia_ele(fecha):
     fecha_pd = pd.to_datetime(fecha.replace('_', '-'))
     global df
     global df_f
-    dfx = pd.read_parquet(f'data_Ttec_dsl_{fecha}.parquet')
+    dfx = pd.read_parquet(f'data_Ttec_{fecha}.parquet')
     dfx.sort_values(by=['fecha_hora_evento'], inplace=True)
 
     df_back = pd.merge_asof(df.loc[df['Fecha'] == fecha_pd], dfx,
@@ -76,14 +75,13 @@ def procesar_dia_dsl(fecha):
     logger.info(f' - - FECHA :  {fecha}')
     logger.info(f'Datos ADATRAP en la fecha: {len(df.loc[df["Fecha"] == fecha_pd].index)}')
     logger.info(f'Datos Tracktec en la fecha: {len(dfx.index)}')
-    logger.info(f'Datos cruzados backw: {len(df_back.loc[~df_back["evento_id_consc"].isna()].index)}')
+    logger.info(f'Datos cruzados backw: {len(df_back.loc[~df_back["evento_id_soc"].isna()].index)}')
 
     df_back['dT_back'] = abs((df_back['Hora_en_parada'] -
                             df_back['fecha_hora_evento']) / pd.Timedelta(seconds=1))
 
     df_back.sort_values(by=['Patente', 'Hora_en_parada'], inplace=True)
-    df_back = df_back.loc[~df_back["evento_id_consc"].isna()]
-
+    df_back = df_back.loc[~df_back["evento_id_soc"].isna()]
 
 
     df_forw = pd.merge_asof(df.loc[df['Fecha'] == fecha_pd], dfx,
@@ -94,20 +92,20 @@ def procesar_dia_dsl(fecha):
                           tolerance=timedelta(seconds=240),
                           direction='forward')
 
-    logger.info(f'Datos cruzados forw: {len(df_forw.loc[~df_forw["evento_id_consc"].isna()].index)}')
+    logger.info(f'Datos cruzados forw: {len(df_forw.loc[~df_forw["evento_id_soc"].isna()].index)}')
 
     df_forw['dT_forw'] = abs((df_forw['Hora_en_parada'] -
                             df_forw['fecha_hora_evento']) / pd.Timedelta(seconds=1))
 
     df_forw.sort_values(by=['Patente', 'Hora_en_parada'], inplace=True)
-    df_forw = df_forw.loc[~df_forw["evento_id_consc"].isna()]
+    df_forw = df_forw.loc[~df_forw["evento_id_soc"].isna()]
 
-    df_back = df_back[columnas_utiles_dsl]
-    df_forw = df_forw[columnas_utiles_dsl]
-    df_back.rename(columns=dict_col_ttec_back_dsl, inplace=True)
-    df_forw.rename(columns=dict_col_ttec_forw_dsl, inplace=True)
+    df_back = df_back[columnas_utiles_ele]
+    df_forw = df_forw[columnas_utiles_ele]
+    df_back.rename(columns=dict_col_ttec_back_ele, inplace=True)
+    df_forw.rename(columns=dict_col_ttec_forw_ele, inplace=True)
     
-    df_dia = df_back.merge(df_forw[col_forw_dsl], left_index=True,
+    df_dia = df_back.merge(df_forw[col_forw_ele], left_index=True,
                              right_index=True, suffixes=('', ''))
 
     df_f.append(df_dia.copy())
@@ -166,7 +164,7 @@ def pipeline(dia_ini, mes, anno, sem_especial=[]):
     logger.info('Cruzando la data')
 
     for fecha_ in fechas_de_interes:
-        procesar_dia_dsl(fecha_)
+        procesar_dia_ele(fecha_)
 
     logger.info('Listo todo para esta semana')
     os.chdir('..')
@@ -178,7 +176,8 @@ if __name__ == '__main__':
     global df_f
     mantener_log()
     # Crear variable que escribe en log file de este dia
-    file_handler = logging.FileHandler(f'merged_data/merge_dsl.log')
+    logger.info(f'Log file para este script de merge de data electrica en merged_data/merge_ele.log')
+    file_handler = logging.FileHandler(f'merged_data/merge_ele.log')
 
     # no deja pasar los debug, solo info hasta critical
     file_handler.setLevel(logging.INFO)
@@ -214,7 +213,7 @@ if __name__ == '__main__':
         if len(df_f.index) > 1000:
             logger.info('Guardando cruce')
             df_f['Fecha'] = pd.to_datetime(df_f['Fecha'])
-            df_f.to_parquet(f'merged_data/Cruce_Adatrap_Ttec_dsl_{ss}.parquet', compression='gzip')
+            df_f.to_parquet(f'merged_data/Cruce_Adatrap_Ttec_ele_{ss}.parquet', compression='gzip')
         else:
             logger.warning('Muy pocos datos, no se va a guardar')
         logger.info(f'Listo todo para servicio {ss}')
